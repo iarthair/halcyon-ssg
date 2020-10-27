@@ -55,3 +55,11 @@ def expand_path(value):
     if not isinstance(value, (list,tuple)):
         value = value.split(os.pathsep) if isinstance(value, str) else []
     return [canonicpath(item or os.curdir) for item in value]
+
+
+def halcyon_data_path(which):
+    # https://specifications.freedesktop.org/basedir-spec/latest/ar01s03.html
+    path = os.getenv('XDG_DATA_DIRS', default='/usr/local/share/:/usr/share/')
+    return [canonicpath(os.path.join(item or os.curdir, 'halcyon', which))
+                for item in path.split(os.pathsep)]
+

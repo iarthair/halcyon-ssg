@@ -3,9 +3,10 @@ import re
 import os
 from datetime import datetime
 from hycmark import CMark
+from collections import abc
 from .utils import canonicpath, normalize_space
 
-class Content(object):
+class Content(abc.Mapping):
     """
 # Content(filename)
 
@@ -37,9 +38,14 @@ The following properties are supported:
         self._content = None
         self._frontmatter = None
         self._metadata = None
+        self._dict = dict()
         self._toc = None
         self._date = None
         self._cm = None
+
+
+    def __repr__(self):
+        return "<class Content('{filename}')>".format(filename=self._filename)
 
 
     def __str__(self):
@@ -49,8 +55,24 @@ The following properties are supported:
         return self._content
 
 
-    def __repr__(self):
-        return "<class Content('{filename}')>".format(filename=self._filename)
+    def __getitem__(self, key):
+        self._include()
+        return self._dict[key]
+
+
+    def __iter__(self):
+        self._include()
+        return iter(self._dict)
+
+
+    def __len__(self):
+        self._include()
+        return len(self._dict)
+
+
+    def __contains__(self, key):
+        self._include()
+        return key in self._dict
 
 
     @property
@@ -60,41 +82,36 @@ The following properties are supported:
 
     @property
     def source(self):
-        if self._raw_content is None:
-            self._include()
+        self._include()
         return self._raw_content
 
 
     @property
     def heading(self):
-        if self._cm is None:
-            self._include()
+        self._include()
         return self._cm.title()
 
 
     @property
     def excerpt(self):
-        if self._cm is None:
-            self._include()
+        self._include()
         return self._cm.excerpt()
 
 
     @property
     def frontmatter(self):
-        """frontmatter is a dictionary of name-value pairs for markdown frontmatter"""
-        if self._frontmatter is None and self._raw_content is None:
-            self._include()
+        """frontmatter is YaML metadata at head of file.
+           Always accessible via frontmatter property even if not a dictionary.
+        """
+        self._include()
         return self._frontmatter
 
 
     @property
     def metadata(self):
         """metadata is a dictionary of name-value pairs for markdown metadata"""
-        if self._metadata is None:
-            if self._raw_content is None:
-                self._include()
-            # FIXME load metadata
-            self._metadata = dict()
+        # FIXME load metadata
+        self._metadata = dict()
         return self._metadata
 
 
@@ -107,14 +124,12 @@ The following properties are supported:
 
 
     def links(self):
-        if self._cm is None:
-            self._include()
+        self._include()
         return self._cm.links()
 
 
     def update_links(self, linkmap):
-        if self._cm is None:
-            self._include()
+        self._include()
         return self._cm.update_links(linkmap)
 
 
@@ -125,6 +140,9 @@ The following properties are supported:
         file as _raw_content.  If 'date' is missing from frontmatter, use the
         file's modification time.
         """
+
+        if self._raw_content is not None:
+            return
 
         def frontmatter(stream):
             """Read frontmatter from the stream"""
@@ -138,6 +156,8 @@ The following properties are supported:
                                           Loader=yaml.CSafeLoader)
             self._raw_content = stream.read()
         self._cm = CMark(self._raw_content)
+        if isinstance(self._frontmatter, dict):
+            self._dict = self._frontmatter
 
 
     def _render(self):

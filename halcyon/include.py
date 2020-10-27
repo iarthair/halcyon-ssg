@@ -58,8 +58,6 @@ def search_page(include):
 
             url_prefix = os.path.relpath(root, start=prefix)
 
-            print(name, canon, root, prefix, url_prefix)
-
             for basename in (item for item in files if whitelist(item)):
                 if not basename.endswith(extensions):
                     continue

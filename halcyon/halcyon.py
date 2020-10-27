@@ -1,7 +1,7 @@
 import os, shutil
 import yaml
 import re
-from .utils import canonicpath, getpath, expand_path, newer
+from .utils import canonicpath, getpath, expand_path, newer, halcyon_data_path
 from .page import Page
 from .content import Content
 from .markdown import Markdown
@@ -10,7 +10,6 @@ from datetime import datetime
 from .include import include_config, search_page
 import traceback
 
-
 class Halcyon(object):
 
     def __init__(self, *args, **kwargs):
@@ -18,9 +17,10 @@ class Halcyon(object):
         self._sitemap = 'sitemap.yml'
         self._date_format = '%A %-d %B %Y %H:%M'
         self._output_dir = './html'         # output directory for site files
-        self._jinja_path = './templates'    # Jinja templates directory
-        self._assets_path = './assets'      # assets to copy to site
-        self._site_root = '.'               # site URL path root
+        self._theme_path = halcyon_data_path('themes')
+        self._template_path = './templates'    # Jinja templates directory
+        self._asset_path = './assets'      # assets to copy to site
+        self._site_root = '/'               # site URL path root
         self._ignore_dir = {self._output_dir}
         self._dump_sitemap = False
         self._render_pages = []
@@ -85,30 +85,51 @@ class Halcyon(object):
         # pop these configuration items
         self._date_format = canonicpath(self._data.pop('date_format', self._date_format))
         self._output_dir = canonicpath(self._data.pop('output_dir', self._output_dir))
-        self._jinja_path = expand_path(self._data.pop('jinja_path', self._jinja_path))
-        self._assets_path = expand_path(self._data.pop('assets_path', self._assets_path))
         self._site_root = self._data.pop('root', self._site_root)
+
+        # build up the templates path and assets path
+        # add variables from sitemap first so they can override the theme, if necessary
+        template_path = expand_path(self._data.pop('template_path', self._template_path))
+        asset_path = expand_path(self._data.pop('asset_path', self._asset_path))
+        # compute theme path for the selected theme and append to respective paths
+        theme = self._data.get('theme', 'halcyon')
+        if 'theme_path' not in self._data:
+            theme_path = self._theme_path
+        else:
+            theme_path = expand_path(self._data.pop('theme_path'))
+            theme_path.extend(self._theme_path)
+        for item in theme_path:
+            for templates in ('templates', '_layouts'):
+                directory = os.path.join(item, theme, templates)
+                template_path.append(directory)
+            for assets in ('assets', 'css', 'images'):
+                directory = os.path.join(item, theme, assets)
+                asset_path.append(directory)
+
+        # filter down paths for the directories that actually exist and de-duplicate
+        self._template_path = [path for index, path in enumerate(template_path)
+                                if path not in template_path[:index] and os.path.isdir(path)]
+        self._asset_path = [path for index, path in enumerate(asset_path)
+                             if path not in asset_path[:index] and os.path.isdir(path)]
+
         print("""Processing files:
         Output:    {output}
-        Templates: {jinja}
+        Templates: {templates}
         Assets:    {assets}
         Site Root: {root}\n""".format(output=self._output_dir,
-                                      jinja=os.pathsep.join(self._jinja_path),
-                                      assets=os.pathsep.join(self._assets_path),
+                                      templates=os.pathsep.join(self._template_path),
+                                      assets=os.pathsep.join(self._asset_path),
                                       root=self._site_root))
 
 
     def fixup_config(self):
-        self._assets_path = [path for index, path in enumerate(self._assets_path)
-                    if path not in self._assets_path[:index] and os.path.isdir(path)]
-
         # make sure all pages are fixed up before rendering starts so
         # that menu URLs etc work properly.
         for page in self._render_pages:
             page.configure(self._site_root)
 
         # ignore output directories and template directories
-        self._ignore_dir.update(self._jinja_path)
+        self._ignore_dir.update(self._template_path)
         self._ignore_dir.update(page['output_dir'] for page in self._render_pages
                                         if 'output_dir' in page)
 
@@ -133,14 +154,14 @@ class Halcyon(object):
         # starting with '_'. Scan source directory then theme directory.
         # During theme scan ignore files if destination already present.
         print("Copying assets:        {assets}".format(
-                                    assets=os.pathsep.join(self._assets_path)))
-        for path in self._assets_path:
+                                    assets=os.pathsep.join(self._asset_path)))
+        for path in self._asset_path:
             cpath = os.path.abspath(path)
             parent = os.path.dirname(cpath)
             for root, dirs, files in os.walk(cpath):
                 dirs[:] = [item for item in dirs
                              if not (item.startswith(('.', '_'))
-                                 or filterdir(os.path.join(root, item), self._ignore_dir))]
+                                     or filterdir(os.path.join(root, item), self._ignore_dir))]
                 relroot = os.path.join(self._output_dir, os.path.relpath(root, start=parent))
                 copy = [(os.path.join(root, item), os.path.join(relroot, item))
                             for item in files
@@ -171,15 +192,15 @@ class Halcyon(object):
 
 
     def render_pages(self):
-        loader = jinja2.FileSystemLoader(self._jinja_path, encoding='utf-8',
+        loader = jinja2.FileSystemLoader(self._template_path, encoding='utf-8',
                                          followlinks=True)
         jinja_env = jinja2.Environment(loader=loader, trim_blocks=True,
                                        lstrip_blocks=True)
         self.add_filters(jinja_env)
         halcyon = dict(sitemap=self._sitemap,
                        output_dir=self._output_dir,
-                       jinja_path=self._jinja_path,
-                       assets_path=self._assets_path,
+                       template_path=self._template_path,
+                       asset_path=self._asset_path,
                        root=self._site_root,
                        pages=self._render_pages)
         jinja_env.globals.update(self._data, halcyon=halcyon)

@@ -1,6 +1,7 @@
 import jinja2
 import re
 import os
+from collections import abc
 from .content import Content
 from .utils import canonicpath, changeext, pathjoin
 
@@ -27,8 +28,8 @@ Page() objects are not directly accessed via templates, however they might
 be accessed via the tree parsed from YAML, e.g. `pages[0].theme` above.
 
 'content' should be either literal text or a Content() instance, if the latter
-it merges values from the content frontmatter or metadata if available. In
-addition it ensures the following keys are available:
+it merges values from the content frontmatter if available. In addition it
+ensures the following keys are available:
 
 * `page` --- self reference for better Jekyll compatibility
 * `path` --- output file/URL name either explicitly specified or derived
@@ -59,16 +60,9 @@ The following methods are available to templates:
         """configure the page in a pass prior to rendering so that templates
         can access metadata for all pages rather than just the current page"""
 
-        # Jekyll compatibility, sort of. Merge frontmatter or metadata.
-        # XXX merge or should templates use 'content.frontmatter.key'?
-        if self._content:
-            var = getattr(self._content, 'frontmatter', None)
-            if isinstance(var, dict):
-                self.update(var)
-            else:
-                var = getattr(self._content, 'metadata', None)
-                if isinstance(var, dict):
-                    self.update(var)
+        # Jekyll compatibility, sort of. Merge frontmatter.
+        if isinstance(self._content, (dict, abc.Mapping)):
+            self.update(self._content)
 
         if 'title' not in self:
             self['title'] = getattr(self._content, 'heading', None)
@@ -101,8 +95,10 @@ The following methods are available to templates:
         # get the page theme and render output
         # Note that properties and methods on this and other classes
         # are called via the templates.
-        theme = self.get('theme', jinja_env.globals.get('theme', 'default.html'))
-        template = jinja_env.get_template(theme)
+        layout = self.get('layout', jinja_env.globals.get('layout', 'default.html'))
+        if not layout.endswith('.html'):
+            layout += '.html'
+        template = jinja_env.get_template(layout)
         with open(filename, 'w') as stream:
             self['active'] = True
             for chunk in template.generate(self):

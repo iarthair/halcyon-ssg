@@ -1,7 +1,9 @@
 import os, shutil
 import yaml
+import sass
 import re
 from .utils import canonicpath, getpath, expand_path, newer, halcyon_data_path
+from .utils import changeext
 from .page import Page
 from .content import Content
 from .markdown import Markdown
@@ -18,8 +20,9 @@ class Halcyon(object):
         self._date_format = '%A %-d %B %Y %H:%M'
         self._output_dir = './html'         # output directory for site files
         self._theme_path = halcyon_data_path('themes')
-        self._template_path = './templates'    # Jinja templates directory
-        self._asset_path = './assets'      # assets to copy to site
+        self._template_path = './templates' # Jinja templates directory
+        self._sass_path = './sass:./scss'   # libsass search path
+        self._asset_path = './assets'       # assets to copy to site
         self._site_root = '/'               # site URL path root
         self._ignore_dir = {self._output_dir}
         self._dump_sitemap = False
@@ -90,6 +93,7 @@ class Halcyon(object):
         # build up the templates path and assets path
         # add variables from sitemap first so they can override the theme, if necessary
         template_path = expand_path(self._data.pop('template_path', self._template_path))
+        sass_path = expand_path(self._data.pop('sass_path', self._sass_path))
         asset_path = expand_path(self._data.pop('asset_path', self._asset_path))
         # compute theme path for the selected theme and append to respective paths
         theme = self._data.get('theme', 'halcyon')
@@ -102,13 +106,18 @@ class Halcyon(object):
             for templates in ('templates', '_layouts'):
                 directory = os.path.join(item, theme, templates)
                 template_path.append(directory)
-            for assets in ('assets', 'css', 'images'):
+            for scss in ('sass', 'scss', '_sass', '_scss'):
+                directory = os.path.join(item, theme, scss)
+                sass_path.append(directory)
+            for assets in ('assets', 'css', 'js', 'images'):
                 directory = os.path.join(item, theme, assets)
                 asset_path.append(directory)
 
         # filter down paths for the directories that actually exist and de-duplicate
         self._template_path = [path for index, path in enumerate(template_path)
                                 if path not in template_path[:index] and os.path.isdir(path)]
+        self._sass_path = [os.path.abspath(path) for index, path in enumerate(sass_path)
+                                if path not in sass_path[:index] and os.path.isdir(path)]
         self._asset_path = [path for index, path in enumerate(asset_path)
                              if path not in asset_path[:index] and os.path.isdir(path)]
 
@@ -116,9 +125,11 @@ class Halcyon(object):
         Output:    {output}
         Templates: {templates}
         Assets:    {assets}
+        Sass/Scss: {sass}
         Site Root: {root}\n""".format(output=self._output_dir,
                                       templates=os.pathsep.join(self._template_path),
                                       assets=os.pathsep.join(self._asset_path),
+                                      sass=os.pathsep.join(self._sass_path),
                                       root=self._site_root))
 
 
@@ -140,15 +151,22 @@ class Halcyon(object):
 
 
     def copy_assets(self):
-        def filterdir(dirname, dirs):
-            """Test if dirname is in dirs
-
-            Return True if dirname is the same file as any of the directories
-            in the dirs collection.  Dirname must exist and only existing
-            directories are tested.
+        def filterdir(root, name):
             """
+            Return True if the name starts with . or _ or the dirname is the
+            same file as any of the directories in the ignore_dir collection.
+            Dirname must exist and only existing directories are tested.
+            """
+            if name.startswith(('.', '_')):
+                return True
+            dirname = os.path.join(root, name)
             return any(os.path.samefile(dirname, item)
-                         for item in dirs if os.path.exists(item))
+                       for item in self._ignore_dir if os.path.exists(item))
+
+        def filterfile(name):
+            if name == self._sitemap or name.startswith(('.', '_')):
+                return True
+            return False
 
         # Copy assets to the destination dir.  Ignore files and directories
         # starting with '_'. Scan source directory then theme directory.
@@ -159,18 +177,35 @@ class Halcyon(object):
             cpath = os.path.abspath(path)
             parent = os.path.dirname(cpath)
             for root, dirs, files in os.walk(cpath):
-                dirs[:] = [item for item in dirs
-                             if not (item.startswith(('.', '_'))
-                                     or filterdir(os.path.join(root, item), self._ignore_dir))]
+                # filter the list of subdirectories to search
+                dirs[:] = [item for item in dirs if not filterdir(root, item)]
+
+                # relroot is the path to the files' output directory
                 relroot = os.path.join(self._output_dir, os.path.relpath(root, start=parent))
+
+                # create tuples of source and destination filenames
+                # ignore names stating with . or _ and the sitemap itself
                 copy = [(os.path.join(root, item), os.path.join(relroot, item))
-                            for item in files
-                                if not (item == self._sitemap or item.startswith((os.curdir, '_')))]
+                            for item in files if not filterfile(item)]
+
                 # copy the files, ignore files already present unless source is newer
+                # Hack: if source file is SASS or SCSS, process with libsass
                 for src, dst in copy:
-                    if not os.path.isfile(dst) or newer(src, dst):
-                        os.makedirs(relroot, exist_ok=True)
-                        shutil.copy(src, dst)
+                    try:
+                        if src.endswith(('.sass', '.scss')):
+                            dstcss = changeext(dst, 'css')
+                            css = sass.compile(filename=src,
+                                               include_paths=self._sass_path)
+                            os.makedirs(relroot, exist_ok=True)
+                            with open(dstcss, 'w') as stream:
+                                stream.write(css)
+                        elif not os.path.isfile(dst) or newer(src, dst):
+                            os.makedirs(relroot, exist_ok=True)
+                            shutil.copy(src, dst)
+                    except Exception as err:
+                        print('Error: {}'.format(err))
+                        #traceback.print_exc()
+
 
 
     def add_filters(self, env):
@@ -187,9 +222,14 @@ class Halcyon(object):
         env.filters['chop'] = chop
 
         def url(value, **kwargs):
+            print("reminder implement url() filter")
             return value
         env.filters['url'] = url
 
+        def obfuscate(string, **kwargs):
+            print("reminder implement obfuscate() filter")
+            return string
+        env.filters['obfuscate'] = obfuscate
 
     def render_pages(self):
         loader = jinja2.FileSystemLoader(self._template_path, encoding='utf-8',
@@ -200,6 +240,7 @@ class Halcyon(object):
         halcyon = dict(sitemap=self._sitemap,
                        output_dir=self._output_dir,
                        template_path=self._template_path,
+                       sass_path=self._sass_path,
                        asset_path=self._asset_path,
                        root=self._site_root,
                        pages=self._render_pages)

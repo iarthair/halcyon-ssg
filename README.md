@@ -1,6 +1,6 @@
 # Halcyon
 
-This is a simple static website builder based on PyYAML, Jinja2 and
+This is a simple static website builder based on PyYAML, Jinja2, libsass and
 MultiMarkdown (MMD).
 
 I wrote it because I could and because Ruby's module infratsructure
@@ -27,8 +27,9 @@ pull in automatically.
 Halcyon depends on:
 
 * [Jinja2][1] Template system.
-* [PyYAML][2] YAML parser/generator.
-* [cmark-gfm][7]. GitHub Flavor Markdown parser with extensions.
+* [libsass-python][2] Sass/SCSS for Python.
+* [PyYAML][3] YAML parser/generator.
+* [cmark-gfm][4]. GitHub Flavor Markdown parser with extensions.
 
 ## Running
 
@@ -36,5 +37,6 @@ All options are specified in `sitemap.yml`. Create one with suitable options
 write some content and run `$ halcyon`. That's it.
 
 [1]: https://jinja.palletsprojects.com/en/2.11.x/
-[2]: https://pyyaml.org/
-[7]: https://github.com/github/cmark-gfm.git
+[2]: https://sass.github.io/libsass-python/
+[3]: https://pyyaml.org/
+[4]: https://github.com/github/cmark-gfm.git

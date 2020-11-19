@@ -37,7 +37,6 @@ The following properties are supported:
         self._raw_content = None
         self._content = None
         self._frontmatter = None
-        self._metadata = None
         self._dict = dict()
         self._toc = None
         self._date = None
@@ -110,9 +109,8 @@ The following properties are supported:
     @property
     def metadata(self):
         """metadata is a dictionary of name-value pairs for markdown metadata"""
-        # FIXME load metadata
-        self._metadata = dict()
-        return self._metadata
+        self._include()
+        return self._cm.metadata
 
 
     @property

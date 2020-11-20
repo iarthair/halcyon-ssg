@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 from hycmark import CMark
 from collections import abc
-from .utils import canonicpath, normalize_space
 
 class Content(abc.Mapping):
     """

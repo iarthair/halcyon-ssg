@@ -77,7 +77,7 @@ The following methods are available to templates:
         # Hack to ensure methods visible to Jinja, here so cannot be overwritten
         page = {'previous': self._previous,
                 'next': self._next,
-                'active': False}
+                'active': self._active}
         self.update(page)
 
 
@@ -100,10 +100,12 @@ The following methods are available to templates:
             layout += '.html'
         template = jinja_env.get_template(layout)
         with open(filename, 'w') as stream:
-            self['active'] = True
             for chunk in template.generate(self):
                 stream.write(chunk)
-            self['active'] = False
+
+
+    def _active(self, page):
+        return page is self
 
 
     def _previous(self, sequence):

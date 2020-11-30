@@ -114,7 +114,6 @@ class Halcyon(object):
         config = self._data.get('halcyon', self._data)
         if 'halcyon' not in self._data:
             self._data['halcyon'] = dict()
-        print("config", type(config))
 
         # pop these configuration items
         self._date_format = canonicpath(config.pop('date_format', self._date_format))

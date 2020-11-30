@@ -1,10 +1,23 @@
 # Halcyon
 
 This is a simple static website builder based on PyYAML, Jinja2, libsass and
-MultiMarkdown (MMD).
+Commonmark.
 
-I wrote it because I could and because Ruby's module infratsructure
-was annoying me, despite Jekyll being an otherwise great tool.
+Halcyon originated when I wrote a Python script mainly to learn about
+[Jinja2][1] templates. I have a few uses for something like this beyond just
+web site maintenance.
+
+A secondary reason was to sharpen my Python skills as it's a couple of years
+since I used Python in anger and I wanted to start something from scratch in
+Python 3.  I also found this was initially simpler to do than to try to
+understand the source code of, say, Sphinx or Mkdocs.  Then I got carried away,
+restructured the script, added more features, called it Halcyon and released
+the code on GitHub.  Nevertheless, having trodden that path, going back and
+looking at those projects it is now much easier to understand what they are
+doing and the rationale for their design.
+
+Finally, I wrote it because because Ruby's module infrasructure was annoying
+me, despite Jekyll being an otherwise great tool.
 
 See the [halcyon-ssg wiki](https://github.com/iarthair/halcyon-ssg/wiki)
 for more information.

@@ -154,7 +154,9 @@ The following properties are supported:
             self._raw_content = stream.read()
         self._cm = CMark(self._raw_content)
         if isinstance(self._frontmatter, dict):
-            self._dict = self._frontmatter
+            self._dict = self._frontmatter.copy()
+        if isinstance(self._metadata, dict):
+            self._dict.update(self._metadata)
 
 
     def _render(self):

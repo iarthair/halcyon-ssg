@@ -120,6 +120,11 @@ The following properties are supported:
         return self._date
 
 
+    def toc(self, *args, **kwargs):
+        self._include()
+        return self._cm.toc(*args, **kwargs)
+
+
     def links(self):
         self._include()
         return self._cm.links()
@@ -155,8 +160,8 @@ The following properties are supported:
         self._cm = CMark(self._raw_content)
         if isinstance(self._frontmatter, dict):
             self._dict = self._frontmatter.copy()
-        if isinstance(self._metadata, dict):
-            self._dict.update(self._metadata)
+        if isinstance(self._cm.metadata, dict):
+            self._dict.update(self._cm.metadata)
 
 
     def _render(self):

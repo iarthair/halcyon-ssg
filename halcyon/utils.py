@@ -10,12 +10,13 @@ rootname = rootname()
 
 
 # https://www.xormedia.com/string-truncate-middle-with-ellipsis/
-def truncate_middle(s, n):
-    if len(s) <= n:
+def truncate_middle(s, length=255, separator=' … '):
+    if len(s) <= length:
         return s
-    n_2 = n // 2 - 3
-    n_1 = n - n_2 - 3
-    return '{0} … {1}'.format(s[:n_1].strip(), s[-n_2:].strip())
+    slen = len(separator)
+    n_2 = length // 2 - slen
+    n_1 = length - n_2 - slen
+    return separator.join((s[:n_1].strip(), s[-n_2:].strip()))
 
 
 def changeext(path, ext):

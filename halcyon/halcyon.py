@@ -3,7 +3,7 @@ import yaml
 import sass
 import re
 from .utils import canonicpath, getpath, expand_path, newer, halcyon_data_path
-from .utils import changeext
+from .utils import changeext, truncate_middle, normalize_space
 from .page import Page
 from .content import Content
 from .plaintext import Plaintext
@@ -240,26 +240,34 @@ class Halcyon(object):
 
     def add_filters(self, env):
 
-        def datetimeformat(value, format=self._date_format):
+        def _datetimeformat(value, format=self._date_format):
             if not (value and isinstance(value, str)):
                 return value
             dt = datetime.fromisoformat(value)
             return dt.strftime(format)
-        env.filters['date'] = datetimeformat
+        env.filters['date'] = _datetimeformat
 
-        def chop(value, start=0, limit=10):
+        def _chop(value, start=0, limit=10):
             return value[start:limit]
-        env.filters['chop'] = chop
+        env.filters['chop'] = _chop
 
-        def url(value, **kwargs):
+        def _url(value, **kwargs):
             print("reminder implement url() filter")
             return value
-        env.filters['url'] = url
+        env.filters['url'] = _url
 
-        def obfuscate(string, **kwargs):
+        def _obfuscate(string, **kwargs):
             print("reminder implement obfuscate() filter")
             return string
-        env.filters['obfuscate'] = obfuscate
+        env.filters['obfuscate'] = _obfuscate
+
+        def _midtruncate(string, **kwargs):
+            return truncate_middle(string, **kwargs)
+        env.filters['midtruncate'] = _midtruncate
+
+        def _normalize_space(string):
+            return normalize_space(string)
+        env.filters['normalize_space'] = _normalize_space
 
 
     def render_pages(self):

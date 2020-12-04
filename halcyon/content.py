@@ -154,9 +154,11 @@ The following properties are supported:
             return ''.join(iter(stream.readline, '---\n'))
 
         with open(self._filename) as stream:
-            self._frontmatter = yaml.load(frontmatter(stream),
-                                          Loader=yaml.CSafeLoader)
+            fm = frontmatter(stream)
+            if fm:
+                self._frontmatter = yaml.load(fm, Loader=yaml.CSafeLoader)
             self._raw_content = stream.read()
+
         self._cm = CMark(self._raw_content)
         if isinstance(self._frontmatter, dict):
             self._dict = self._frontmatter.copy()

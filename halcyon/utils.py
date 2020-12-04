@@ -57,10 +57,36 @@ def expand_path(value):
         value = value.split(os.pathsep) if isinstance(value, str) else []
     return [canonicpath(item or os.curdir) for item in value]
 
-
-def halcyon_data_path(which):
+def system_data_path():
+    # XDG spec
     # https://specifications.freedesktop.org/basedir-spec/latest/ar01s03.html
-    path = os.getenv('XDG_DATA_DIRS', default='/usr/local/share/:/usr/share/')
-    return [canonicpath(os.path.join(item or os.curdir, 'halcyon', which))
-                for item in path.split(os.pathsep)]
 
+    # System directories
+    path = os.getenv('XDG_DATA_DIRS', default='/usr/local/share/:/usr/share/')
+    paths = [item or os.curdir for item in path.split(os.pathsep)]
+
+    # User directory
+    localdata = os.getenv('XDG_DATA_HOME', default='~/.local/share/')
+    paths.insert(0, os.path.expanduser(localdata))
+
+    # remove non-existent directories and duplicates
+    return [path for index, path in enumerate(paths)
+                    if path not in paths[:index] and os.path.isdir(path)]
+
+def user_data_path():
+    # XDG spec
+    # https://specifications.freedesktop.org/basedir-spec/latest/ar01s03.html
+
+    # User directory
+    localdata = os.getenv('XDG_DATA_HOME', default='~/.local/share/')
+    path = os.path.expanduser(localdata)
+
+    return [path] if os.path.isdir(path) else []
+
+def data_path(dirs, localdir, which):
+    # user theme directory
+    temp = [os.path.expanduser(os.path.join('~/.' + localdir, which))]
+    temp.extend(os.path.join(item, 'halcyon', which) for item in dirs)
+
+    # remove non-existent directories
+    return [path for path in temp if os.path.isdir(path)]

@@ -2,8 +2,9 @@ import os, shutil
 import yaml
 import sass
 import re
-from .utils import canonicpath, getpath, expand_path, newer, halcyon_data_path
+from .utils import canonicpath, getpath, expand_path, newer
 from .utils import changeext, truncate_middle, normalize_space
+from .utils import data_path, user_data_path, system_data_path
 from .page import Page
 from .content import Content
 from .plaintext import Plaintext
@@ -12,25 +13,31 @@ import jinja2
 from datetime import datetime
 from .include import include_config, search_page
 import traceback
+import configparser
 
 class Halcyon(object):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         super().__init__()
+
+        datadirs = system_data_path()
+        self._theme_path = data_path(datadirs, 'halcyon', 'themes')
+        datadirs = user_data_path()
+        self._include_path = data_path(datadirs, 'halcyon', 'include')
+
         self._sitemap = 'sitemap.yml'
         self._date_format = '%A %-d %B %Y %H:%M'
         self._output_dir = './html'         # output directory for site files
-        self._theme_path = halcyon_data_path('themes')
         self._template_path = './templates' # Jinja templates directory
         self._sass_path = './sass:./scss'   # libsass search path
-        self._asset_path = './assets'       # assets to copy to site
+        self._assets_path = './assets'      # assets to copy to site
         self._site_root = '/'               # site URL path root
-        self._ignore_dir = {self._output_dir}
-        self._dump_sitemap = False
-        self._render_pages = []
-        self._content = []
         self._markdown_ext = re.compile(r'.*\.(md|mkd|mdown|markdown)$')
         self._plaintext_ext = re.compile(r'.*\.txt$')
+
+        self._ignore_dir = {self._output_dir}
+        self._render_pages = []
+        self._content = []
 
         # !config scalar-or-list --- scan directories for YaML files and parse content
         def _config_tag(loader, node):
@@ -102,7 +109,7 @@ class Halcyon(object):
         - root          Site root                       '/'
         - template_path Search path for templates       './templates'
         - sass_path     Search path for SASS/SCSS       './sass:./scss'
-        - asset_path    Search path for copied assets   './assets'
+        - assets_path   Search path for copied assets   './assets'
         - theme_path    Search path for Halcyon themes
                         in addition to system defaults.
         The site theme is specified at top level using 'theme'.
@@ -124,17 +131,49 @@ class Halcyon(object):
         # add variables from sitemap first so they can override the theme, if necessary
         template_path = expand_path(config.pop('template_path', self._template_path))
         sass_path = expand_path(config.pop('sass_path', self._sass_path))
-        asset_path = expand_path(config.pop('asset_path', self._asset_path))
+        assets_path = expand_path(config.pop('assets_path', self._assets_path))
 
-        # compute theme path for the selected theme and append to respective paths
+        # Get the theme
         theme = self._data.get('theme', 'halcyon')
+
+        # Print summary before adding in the includes and themes
+        print("""Processing files:
+        Theme:     {theme}
+        Output:    {output}
+        Templates: {templates}
+        Assets:    {assets}
+        Sass/Scss: {sass}
+        Site Root: {root}\n""".format(theme=theme,
+                                      output=self._output_dir,
+                                      templates=os.pathsep.join(template_path),
+                                      assets=os.pathsep.join(assets_path),
+                                      sass=os.pathsep.join(sass_path),
+                                      root=self._site_root))
+
+        # compute includes and theme path for the selected theme
+        if 'include_path' not in config:
+            include_path = self._include_path
+        else:
+            include_path = expand_path(config.pop('include_path'))
+            include_path.extend(self._include_path)
+
+        for item in include_path:
+            directory = os.path.join(item, 'jinja')
+            template_path.append(directory)
+            directory = os.path.join(item, 'libsass')
+            sass_path.append(directory)
+            for assets in ('assets', 'css', 'js', 'images'):
+                directory = os.path.join(item, assets)
+                assets_path.append(directory)
+
         if 'theme_path' not in config:
             theme_path = self._theme_path
         else:
             theme_path = expand_path(config.pop('theme_path'))
             theme_path.extend(self._theme_path)
+
         for item in theme_path:
-            for templates in ('templates', '_layouts'):
+            for templates in ('templates', '_layouts', 'include'):
                 directory = os.path.join(item, theme, templates)
                 template_path.append(directory)
             for scss in ('sass', 'scss', '_sass', '_scss'):
@@ -142,26 +181,15 @@ class Halcyon(object):
                 sass_path.append(directory)
             for assets in ('assets', 'css', 'js', 'images'):
                 directory = os.path.join(item, theme, assets)
-                asset_path.append(directory)
+                assets_path.append(directory)
 
         # filter down paths for the directories that actually exist and de-duplicate
         self._template_path = [path for index, path in enumerate(template_path)
                                 if path not in template_path[:index] and os.path.isdir(path)]
         self._sass_path = [os.path.abspath(path) for index, path in enumerate(sass_path)
                                 if path not in sass_path[:index] and os.path.isdir(path)]
-        self._asset_path = [path for index, path in enumerate(asset_path)
-                             if path not in asset_path[:index] and os.path.isdir(path)]
-
-        print("""Processing files:
-        Output:    {output}
-        Templates: {templates}
-        Assets:    {assets}
-        Sass/Scss: {sass}
-        Site Root: {root}\n""".format(output=self._output_dir,
-                                      templates=os.pathsep.join(self._template_path),
-                                      assets=os.pathsep.join(self._asset_path),
-                                      sass=os.pathsep.join(self._sass_path),
-                                      root=self._site_root))
+        self._assets_path = [path for index, path in enumerate(assets_path)
+                                if path not in assets_path[:index] and os.path.isdir(path)]
 
 
     def fixup_config(self):
@@ -170,15 +198,12 @@ class Halcyon(object):
         for page in self._render_pages:
             page.configure(self._site_root)
 
+        #XXX fix up links
+
         # ignore output directories and template directories
         self._ignore_dir.update(self._template_path)
         self._ignore_dir.update(page['output_dir'] for page in self._render_pages
                                         if 'output_dir' in page)
-
-        # maybe dump the config as json
-        if self._dump_sitemap:
-            with open(self._dump_sitemap, 'w') as jfp:
-                json.dump(self._data, jfp, indent = 3)
 
 
     def copy_assets(self):
@@ -202,11 +227,10 @@ class Halcyon(object):
         # Copy assets to the destination dir.  Ignore files and directories
         # starting with '_'. Scan source directory then theme directory.
         # During theme scan ignore files if destination already present.
-        print("Copying assets:        {assets}".format(
-                                    assets=os.pathsep.join(self._asset_path)))
-        for path in self._asset_path:
+        for path in self._assets_path:
             cpath = os.path.abspath(path)
             parent = os.path.dirname(cpath)
+            print("Copying assets:        {path}".format(path=cpath))
             for root, dirs, files in os.walk(cpath):
                 # filter the list of subdirectories to search
                 dirs[:] = [item for item in dirs if not filterdir(root, item)]
@@ -280,7 +304,7 @@ class Halcyon(object):
                                      output_dir=self._output_dir,
                                      template_path=self._template_path,
                                      sass_path=self._sass_path,
-                                     asset_path=self._asset_path,
+                                     assets_path=self._assets_path,
                                      root=self._site_root,
                                      pages=self._render_pages)
         jinja_env.globals.update(self._data)
@@ -289,5 +313,5 @@ class Halcyon(object):
             try:
                 page.render(self._output_dir, jinja_env)
             except Exception as err:
-                #print('Error: {}'.format(err))
-                traceback.print_exc()
+                print('Error: {}'.format(err))
+                #traceback.print_exc()

@@ -40,6 +40,7 @@ The following methods are available to templates:
 
 * `previous(list)` --- Find the page preceding this one in list or None.
 * `next(list)` --- Find the page following this one in list or None.
+* `active(page)` --- True if the page is being rendered.
     """
 
     def __init__(self, *args, **kwargs):
@@ -95,7 +96,7 @@ The following methods are available to templates:
         # get the page theme and render output
         # Note that properties and methods on this and other classes
         # are called via the templates.
-        layout = self.get('layout', jinja_env.globals.get('layout', 'default.html'))
+        layout = self.get('layout', jinja_env.globals.get('layout', 'default'))
         if not layout.endswith('.html'):
             layout += '.html'
         template = jinja_env.get_template(layout)

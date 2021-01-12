@@ -24,5 +24,6 @@ setup(
         "License :: OSI Approved :: GNU General Public License (GPL)",
         "Operating System :: OS Independent",
     ],
+    scripts=['scripts/halcyon'],
     python_requires='>=3.6',
 )

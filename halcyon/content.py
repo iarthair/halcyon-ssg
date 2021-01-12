@@ -24,11 +24,9 @@ The following properties are supported:
 * `excerpt` --- Raw text from the first paragraph in the document.
 * `heading` --- Raw text from the first level 1 heading in the document.
 * `frontmatter` --- Dictionary containing the YaML front matter, if provided.
-* `metadata` --- Dictionary containing the Markdown metadata, if supported.
+* `metadata` --- Dictionary containing the Markdown metadata, if provided.
 * `toc` --- List of 3-tuples for first and second level headings, if supported.
 """
-
-    _element = re.compile(r'</?\w+/?>')
 
     def __init__(self, filename):
         super().__init__()

@@ -71,7 +71,7 @@ class Halcyon(object):
             self._content.append(content)
             return content
         yaml.add_constructor('!plaintext', _plaintext_tag, Loader=yaml.CSafeLoader)
-        yaml.add_implicit_resolver('!plaintext', self._markdown_ext, Loader=yaml.CSafeLoader)
+        yaml.add_implicit_resolver('!plaintext', self._plaintext_ext, Loader=yaml.CSafeLoader)
 
 
         # !markdown text --- mark text for markdown processing
